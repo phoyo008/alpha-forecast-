@@ -1,0 +1,42 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "alpha-forecast"
+version = "0.1.0"
+description = "Multi-model equity return forecasting & backtesting engine built on OpenBB"
+readme = "README.md"
+requires-python = ">=3.10"
+authors = [{ name = "Pablo Hoyos" }]
+license = { text = "MIT" }
+keywords = ["quant", "finance", "forecasting", "backtesting", "openbb"]
+dependencies = [
+    "numpy>=1.24",
+    "pandas>=2.0",
+]
+
+[project.optional-dependencies]
+# Strong models + real data providers (install for full capability)
+full = [
+    "scikit-learn>=1.3",
+    "lightgbm>=4.0",
+    "statsmodels>=0.14",
+    "yfinance>=0.2.40",
+]
+openbb = ["openbb>=4.0"]
+dashboard = ["streamlit>=1.30", "plotly>=5.18"]
+dev = ["pytest>=7.4", "ruff>=0.4"]
+
+[project.scripts]
+alpha-forecast = "alpha_forecast.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["alpha_forecast*"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

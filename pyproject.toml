@@ -57,3 +57,10 @@ ignore = ["E501"]  # line length handled by formatter
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+filterwarnings = [
+    # Third-party deprecations we don't control (pandas-datareader, sklearn).
+    "ignore::DeprecationWarning:pandas_datareader.*",
+    "ignore:.*date_parser.*:FutureWarning",
+    "ignore:.*Stochastic Optimizer.*:UserWarning",
+    "ignore:.*hasn't converged.*",
+]

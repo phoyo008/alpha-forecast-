@@ -98,17 +98,22 @@ def risk_parity_weights(
     n = sigma.shape[0]
     sigma = sigma + 1e-8 * np.eye(n)
 
+    # Spinu's cyclical coordinate descent. For each asset i we solve the
+    # scalar quadratic that sets its risk contribution to the common target
+    # (1/n of the budget). Weights stay strictly positive throughout, so there
+    # are no sqrt-of-negative issues regardless of the covariance structure.
+    b = 1.0 / n  # equal risk budget per asset
     w = np.full(n, 1.0 / n)
     for _ in range(iterations):
-        marginal = sigma @ w              # ∂σ/∂w (unscaled)
-        rc = w * marginal                 # risk contribution per asset
-        target = rc.mean()
-        # Multiplicative update nudging each contribution toward the mean.
-        w_new = w * (target / np.where(rc == 0, target, rc)) ** 0.5
-        w_new = np.maximum(w_new, 0.0)
-        w_new /= w_new.sum()
-        if np.max(np.abs(w_new - w)) < tol:
-            w = w_new
+        w_prev = w.copy()
+        for i in range(n):
+            # Risk from all other assets w.r.t. asset i.
+            others = sigma[i] @ w - sigma[i, i] * w[i]
+            # Solve sigma_ii * w_i^2 + others * w_i - b = 0 for w_i > 0.
+            disc = others**2 + 4.0 * sigma[i, i] * b
+            w[i] = (-others + np.sqrt(disc)) / (2.0 * sigma[i, i])
+        if np.max(np.abs(w - w_prev)) < tol:
             break
-        w = w_new
+    w = np.maximum(w, 0.0)
+    w /= w.sum()
     return pd.Series(w, index=labels, name="weight")

@@ -65,7 +65,6 @@ def _from_datareader(start: str, end: str) -> pd.DataFrame | None:
         )[0]
         ff.columns = [str(c).lower().replace("-", "_").strip() for c in ff.columns]
         ff.index = pd.to_datetime(ff.index)
-        ff = ff.rename(columns={"mkt_rf": "mkt_rf"})
         keep = [c for c in FACTOR_COLUMNS if c in ff.columns]
         logger.info("Loaded Fama-French factors from pandas-datareader (%d rows)", len(ff))
         return ff[keep] / 100.0

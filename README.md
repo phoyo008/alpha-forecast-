@@ -47,6 +47,7 @@ alpha_forecast/
 ├── risk/          # VaR / Expected Shortfall + Kupiec backtest
 ├── regime/        # NumPy Gaussian HMM for market regime detection
 ├── portfolio/     # mean-variance / risk-parity / Black-Litterman + multi-asset backtest + holdings
+├── options/       # Black-Scholes pricing, Greeks, implied-volatility solver
 ├── config.py      # environment switches (offline mode, cache directory)
 ├── pipeline.py    # end-to-end orchestration → model leaderboard
 └── cli.py         # command-line entry point
@@ -291,6 +292,31 @@ probs = rolling_regime_probabilities(rets, n_states=2)   # refit every 21 days, 
 
 The `regime` model in the registry builds on this: it fits one ridge regression
 per regime and blends their forecasts by the filtered regime probabilities.
+
+### Options pricing & Greeks
+
+`alpha_forecast.options` is a self-contained Black-Scholes-Merton toolkit for
+European options — pricing, the full set of Greeks, and a robust implied-volatility
+solver (Newton-Raphson with a bracketed bisection fallback). It pairs naturally
+with the GARCH volatility forecaster above.
+
+```python
+from alpha_forecast.options import call_price, greeks, implied_volatility
+
+# Price an at-the-money 1-year call: S=100, K=100, r=5%, sigma=20%
+price = call_price(S=100, K=100, t=1.0, r=0.05, sigma=0.20)   # ≈ 10.45
+
+# Full Greeks in one call
+g = greeks(S=100, K=100, t=1.0, r=0.05, sigma=0.20, option_type="call")
+# {'delta': ..., 'gamma': ..., 'vega': ..., 'theta': ..., 'rho': ...}
+
+# Recover implied vol from a market price
+iv = implied_volatility(price=10.45, S=100, K=100, t=1.0, r=0.05)  # ≈ 0.20
+```
+
+All functions accept scalars or NumPy arrays and support a continuous dividend
+yield `q`. Pricing/Greeks are validated against put-call parity and finite-
+difference checks in `tests/test_options.py`.
 
 ---
 

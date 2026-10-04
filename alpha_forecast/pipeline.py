@@ -19,6 +19,43 @@ from alpha_forecast.models import MODEL_REGISTRY
 logger = logging.getLogger(__name__)
 
 
+def _collect_extra_features(
+    prices: pd.DataFrame,
+    *,
+    use_factors: bool,
+    use_macro: bool,
+) -> pd.DataFrame | None:
+    """Assemble optional Fama-French factor and FRED macro features."""
+    frames = []
+    start = prices.index.min().date().isoformat()
+    end = prices.index.max().date().isoformat()
+
+    if use_factors:
+        try:
+            from alpha_forecast.features.factors import load_fama_french
+
+            frames.append(load_fama_french(start, end))
+        except Exception as exc:  # pragma: no cover - defensive
+            logger.warning("Could not load Fama-French factors: %s", exc)
+
+    if use_macro:
+        try:
+            from alpha_forecast.features.macro import load_macro
+
+            m = load_macro(start, end)
+            if m is not None:
+                frames.append(m)
+        except Exception as exc:  # pragma: no cover - defensive
+            logger.warning("Could not load macro features: %s", exc)
+
+    if not frames:
+        return None
+    combined = frames[0]
+    for f in frames[1:]:
+        combined = combined.join(f, how="outer")
+    return combined
+
+
 def run_comparison(
     symbol: str,
     *,
@@ -29,6 +66,8 @@ def run_comparison(
     initial_train: int = 252,
     step: int = 21,
     cost_bps: float = 1.0,
+    use_factors: bool = False,
+    use_macro: bool = False,
 ) -> pd.DataFrame:
     """Run every requested model through walk-forward backtesting and compare.
 
@@ -36,7 +75,8 @@ def run_comparison(
     """
     models = models or list(MODEL_REGISTRY)
     prices = load_prices(symbol, start, end)
-    X, y = build_features(prices, horizon=horizon)
+    extra = _collect_extra_features(prices, use_factors=use_factors, use_macro=use_macro)
+    X, y = build_features(prices, horizon=horizon, extra=extra)
     logger.info("Prepared %d samples with %d features for %s", len(X), X.shape[1], symbol)
 
     rows = []

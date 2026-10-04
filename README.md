@@ -1,5 +1,7 @@
 # alpha-forecast 📈
 
+![CI](https://github.com/phoyo008/alpha-forecast-/actions/workflows/ci.yml/badge.svg)
+
 **A multi-model equity return forecasting & walk-forward backtesting engine, built on [OpenBB](https://github.com/OpenBB-finance/OpenBB).**
 
 OpenBB gives you clean "connect once" access to market data but deliberately
@@ -35,14 +37,15 @@ misleadingly high because prices trend). `alpha-forecast` avoids all four:
 ```
 alpha_forecast/
 ├── data/          # OpenBB → yfinance → synthetic fallback (always runnable)
-├── features/      # causal feature engineering (momentum, MA ratios, vol, RSI)
-├── models/        # Forecaster interface + naive, drift, ETS, gradient boosting
+├── features/      # causal engineering: price features + Fama-French factors + FRED macro
+├── models/        # Forecaster interface + naive, drift, ETS, gradient boosting, GARCH vol
 ├── backtest/      # expanding-window walk-forward engine
-├── evaluation/    # forecast-error + economic (Sharpe/drawdown) metrics
+├── evaluation/    # forecast-error + economic metrics + matplotlib plots
 ├── pipeline.py    # end-to-end orchestration → model leaderboard
 └── cli.py         # command-line entry point
 dashboard/app.py   # Streamlit UI with equity curves + leaderboard
 tests/             # offline tests (synthetic data) incl. look-ahead checks
+.github/workflows/ # CI: lint + test on Python 3.10–3.12
 ```
 
 Every model implements the same `Forecaster` interface (`fit`/`predict`), so the
@@ -88,6 +91,42 @@ The loader tries providers in order and **always produces data**:
 1. **OpenBB Platform** — `obb.equity.price.historical` (install `.[openbb]`)
 2. **yfinance** — fallback (install `.[full]`)
 3. **Synthetic GBM** — reproducible offline fallback so tests/CI always run
+
+### Factor & macro features (optional)
+
+| Feature set | Flag | API key? | Source |
+|---|---|---|---|
+| **Fama-French factors** (Mkt-RF, SMB, HML, RF) | `--factors` | No | OpenBB → Ken French library → synthetic |
+| **FRED macro** (yield slope, breakeven, VIX) | `--macro` | Free `FRED_API_KEY` | FRED via `fredapi` |
+
+```bash
+# Add Fama-French factor exposures (free, no key)
+python -m alpha_forecast.cli --symbol AAPL --factors -v
+
+# Add macro features (export your free FRED key first)
+export FRED_API_KEY=your_key_here
+python -m alpha_forecast.cli --symbol AAPL --factors --macro -v
+```
+
+All external features are **forward-filled and lagged one day** before joining,
+so they can only ever use information observable at the close of the trading
+day — preserving the no-look-ahead guarantee.
+
+### Volatility forecasting
+
+`alpha_forecast.models.volatility` provides a **GARCH(1,1)** forecaster (via the
+`arch` package, with an EWMA/RiskMetrics fallback). Volatility is far more
+forecastable than returns, making this useful for risk and options work:
+
+```python
+from alpha_forecast.data import load_prices
+from alpha_forecast.models.volatility import rolling_vol_forecast
+import numpy as np
+
+prices = load_prices("AAPL")
+rets = np.log(prices["close"]).diff().dropna()
+vol = rolling_vol_forecast(rets)   # one-step-ahead conditional vol, out-of-sample
+```
 
 ---
 

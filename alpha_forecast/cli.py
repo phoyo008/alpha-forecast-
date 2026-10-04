@@ -34,6 +34,16 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--initial-train", type=int, default=252)
     p.add_argument("--step", type=int, default=21)
     p.add_argument("--cost-bps", type=float, default=1.0)
+    p.add_argument(
+        "--factors",
+        action="store_true",
+        help="Add Fama-French factor features (free, no API key)",
+    )
+    p.add_argument(
+        "--macro",
+        action="store_true",
+        help="Add FRED macro features (requires FRED_API_KEY env var)",
+    )
     p.add_argument("-v", "--verbose", action="store_true")
     return p
 
@@ -53,6 +63,8 @@ def main(argv: list[str] | None = None) -> int:
         initial_train=args.initial_train,
         step=args.step,
         cost_bps=args.cost_bps,
+        use_factors=args.factors,
+        use_macro=args.macro,
     )
     print(f"\n=== alpha-forecast leaderboard: {args.symbol} (horizon={args.horizon}d) ===\n")
     with_pct = board.copy()

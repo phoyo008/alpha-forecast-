@@ -6,8 +6,9 @@ from the core so the engine has no hard plotting dependency.
 
 from __future__ import annotations
 
-import numpy as np
 import pandas as pd
+
+from alpha_forecast.evaluation.metrics import log_equity, strategy_returns
 
 
 def _require_mpl():
@@ -21,12 +22,18 @@ def _require_mpl():
         ) from exc
 
 
-def equity_curve(actuals: pd.Series, predictions: pd.Series):
-    """Return a matplotlib Figure of the strategy equity curve vs buy & hold."""
+def equity_curve(
+    actuals: pd.Series,
+    predictions: pd.Series,
+    *,
+    cost_bps: float = 1.0,
+    horizon: int = 1,
+):
+    """Return a matplotlib Figure of the net strategy equity curve vs buy & hold."""
     plt = _require_mpl()
-    pos = np.sign(predictions).replace(0, 1.0)
-    strat = (1 + pos * actuals).cumprod()
-    bh = (1 + actuals).cumprod()
+    net = strategy_returns(actuals, predictions, cost_bps=cost_bps, horizon=horizon)
+    strat = log_equity(net)
+    bh = log_equity(actuals.loc[net.index])
 
     fig, ax = plt.subplots(figsize=(10, 5))
     ax.plot(strat.index, strat.values, label="Forecast strategy")

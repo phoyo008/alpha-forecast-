@@ -10,6 +10,10 @@ repeatedly:
 
 so every prediction is strictly out-of-sample. This mirrors how a model would
 actually be deployed and retrained in production.
+
+For multi-day horizons the target of training row ``t`` is only realised at
+``t + horizon``, so the last ``horizon - 1`` training rows would peek into the
+test window. Those rows are *purged* from each training fold.
 """
 
 from __future__ import annotations
@@ -43,7 +47,7 @@ def walk_forward_backtest(
     *,
     initial_train: int = 252,
     step: int = 21,
-    min_train: int | None = None,
+    horizon: int = 1,
 ) -> BacktestResult:
     """Run an expanding-window walk-forward backtest.
 
@@ -57,13 +61,19 @@ def walk_forward_backtest(
         Number of observations in the first training window (default ~1yr).
     step:
         How many observations to predict before retraining (default ~1mo).
+    horizon:
+        Forecast horizon of ``y`` in rows. The final ``horizon - 1`` rows of
+        each training window are purged because their targets overlap the
+        test window.
     """
-    if min_train is None:
-        min_train = initial_train
+    if horizon < 1:
+        raise ValueError(f"horizon must be >= 1, got {horizon}")
+    purge = horizon - 1
     n = len(X)
-    if n <= initial_train:
+    if n <= initial_train or initial_train - purge < 1:
         raise ValueError(
-            f"Not enough data: have {n} rows, need > initial_train={initial_train}"
+            f"Not enough data: have {n} rows, need > initial_train={initial_train} "
+            f"and initial_train > horizon - 1={purge}"
         )
 
     preds: list[float] = []
@@ -73,7 +83,7 @@ def walk_forward_backtest(
 
     while start < n:
         end = min(start + step, n)
-        X_train, y_train = X.iloc[:start], y.iloc[:start]
+        X_train, y_train = X.iloc[: start - purge], y.iloc[: start - purge]
         X_test = X.iloc[start:end]
 
         model: Forecaster = model_factory()

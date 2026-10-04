@@ -14,6 +14,7 @@ using statistics learned on the training fold only (no leakage).
 from __future__ import annotations
 
 import logging
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -27,8 +28,8 @@ class _Scaler:
     """Simple train-fit standardiser (mean/std), leakage-free."""
 
     def __init__(self) -> None:
-        self.mean_ = None
-        self.std_ = None
+        self.mean_: np.ndarray = np.zeros(0)
+        self.std_: np.ndarray = np.ones(0)
 
     def fit(self, X: np.ndarray) -> _Scaler:
         self.mean_ = X.mean(axis=0)
@@ -49,15 +50,18 @@ class NeuralForecaster(Forecaster):
         self.hidden = hidden
         self._scaler = _Scaler()
         self._backend = "none"
-        self._model = None
+        self._model: Any = None
         self._mean = 0.0
-        self._coef = None
+        self._y_std = 1.0
+        self._coef: np.ndarray | None = None
 
     # ------------------------------------------------------------------
     def fit(self, X: pd.DataFrame, y: pd.Series) -> NeuralForecaster:
         self._mean = float(y.mean())
         Xv = X.to_numpy(dtype=float)
-        yv = y.to_numpy(dtype=float)
+        # Daily returns are ~1e-2; nets train far better on a unit-scale target.
+        self._y_std = float(y.std()) or 1.0
+        yv = (y.to_numpy(dtype=float) - self._mean) / self._y_std
         self._scaler.fit(Xv)
         Xs = self._scaler.transform(Xv)
 
@@ -148,14 +152,17 @@ class NeuralForecaster(Forecaster):
         return np.asarray(seqs, dtype=np.float32), np.asarray(targets, dtype=np.float32)
 
     def predict(self, X: pd.DataFrame) -> np.ndarray:
+        return self._mean + self._y_std * self._predict_scaled(X)
+
+    def _predict_scaled(self, X: pd.DataFrame) -> np.ndarray:
         Xs = self._scaler.transform(X.to_numpy(dtype=float))
 
         if self._backend == "torch_lstm" and self._model is not None:
             torch = self._torch
             # Build rolling sequences; the first `lookback` rows can't form a
-            # full window, so pad them with the mean prediction.
+            # full window, so pad them with the mean (zero on the scaled target).
             n = len(Xs)
-            preds = np.full(n, self._mean, dtype=float)
+            preds = np.zeros(n, dtype=float)
             if n > self.lookback:
                 seqs = np.stack(
                     [Xs[i - self.lookback : i] for i in range(self.lookback, n)]
@@ -172,7 +179,7 @@ class NeuralForecaster(Forecaster):
             Xb = np.column_stack([np.ones(len(Xs)), Xs])
             return Xb @ self._coef
 
-        return np.full(len(X), self._mean)
+        return np.zeros(len(X))
 
     @property
     def backend(self) -> str:

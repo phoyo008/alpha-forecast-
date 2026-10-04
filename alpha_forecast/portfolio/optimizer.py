@@ -7,6 +7,9 @@ Three allocation schemes, all long-only and fully invested (weights sum to 1):
                                (tangency-style, with optional risk aversion)
     * risk_parity_weights -- each asset contributes equal risk
 
+plus :func:`black_litterman`, which blends an equilibrium prior with model
+forecasts (views) into posterior expected returns for the mean-variance step.
+
 Implemented with numpy only (no cvxpy dependency) using projected-gradient /
 iterative schemes, so the module installs anywhere. These are the workhorse
 methods a quant is expected to know cold.
@@ -117,3 +120,68 @@ def risk_parity_weights(
     w = np.maximum(w, 0.0)
     w /= w.sum()
     return pd.Series(w, index=labels, name="weight")
+
+
+def black_litterman(
+    cov: pd.DataFrame,
+    *,
+    market_weights: pd.Series | None = None,
+    views: pd.Series | None = None,
+    P: pd.DataFrame | None = None,
+    Q: pd.Series | np.ndarray | None = None,
+    view_confidence: float = 1.0,
+    tau: float = 0.05,
+    risk_aversion: float = 2.5,
+) -> tuple[pd.Series, pd.DataFrame]:
+    """Black-Litterman posterior expected returns and covariance.
+
+    The prior is the equilibrium return ``pi = risk_aversion * cov @ w_mkt``
+    implied by ``market_weights`` (equal weight if omitted). Views are either
+
+    * ``views``: absolute views, a Series mapping asset -> expected return, or
+    * ``P`` (k x n pick matrix) and ``Q`` (k view returns) for relative views.
+
+    View uncertainty follows He & Litterman: ``Omega = diag(P tau Sigma P') /
+    view_confidence``, so higher confidence pulls the posterior toward the views.
+
+    Returns ``(mu_posterior, cov_posterior)`` labelled like ``cov``.
+    """
+    labels = list(cov.index)
+    sigma = np.asarray(cov, dtype=float)
+    n = len(labels)
+    if market_weights is None:
+        w_mkt = np.full(n, 1.0 / n)
+    else:
+        w_mkt = market_weights.reindex(labels).fillna(0.0).to_numpy(dtype=float)
+    pi = risk_aversion * sigma @ w_mkt
+    tau_sigma = tau * sigma
+
+    if views is not None:
+        views = views.dropna()
+        P_arr = np.zeros((len(views), n))
+        for row, asset in enumerate(views.index):
+            P_arr[row, labels.index(asset)] = 1.0
+        Q_arr = views.to_numpy(dtype=float)
+    elif P is not None and Q is not None:
+        P_arr = np.asarray(P.reindex(columns=labels).fillna(0.0), dtype=float)
+        Q_arr = np.asarray(Q, dtype=float).ravel()
+    else:
+        P_arr = np.zeros((0, n))
+        Q_arr = np.zeros(0)
+
+    if len(Q_arr) == 0:
+        mu_post = pi
+        post_unc = tau_sigma
+    else:
+        if view_confidence <= 0:
+            raise ValueError("view_confidence must be positive")
+        omega = np.diag(np.diag(P_arr @ tau_sigma @ P_arr.T)) / view_confidence
+        omega += 1e-12 * np.eye(len(Q_arr))
+        inv_tau_sigma = np.linalg.inv(tau_sigma + 1e-12 * np.eye(n))
+        inv_omega = np.linalg.inv(omega)
+        post_unc = np.linalg.inv(inv_tau_sigma + P_arr.T @ inv_omega @ P_arr)
+        mu_post = post_unc @ (inv_tau_sigma @ pi + P_arr.T @ inv_omega @ Q_arr)
+
+    mu = pd.Series(mu_post, index=labels, name="mu_bl")
+    cov_post = pd.DataFrame(sigma + post_unc, index=labels, columns=labels)
+    return mu, cov_post

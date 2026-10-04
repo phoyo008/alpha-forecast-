@@ -4,13 +4,23 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "alpha-forecast"
-version = "0.1.0"
+dynamic = ["version"]
 description = "Multi-model equity return forecasting & backtesting engine built on OpenBB"
 readme = "README.md"
 requires-python = ">=3.10"
 authors = [{ name = "Pablo Hoyos" }]
 license = { text = "MIT" }
 keywords = ["quant", "finance", "forecasting", "backtesting", "openbb"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "License :: OSI Approved :: MIT License",
+    "Topic :: Office/Business :: Financial :: Investment",
+    "Typing :: Typed",
+]
 dependencies = [
     "numpy>=1.24",
     "pandas>=2.0",
@@ -31,18 +41,31 @@ factors = ["pandas-datareader>=0.10"]
 macro = ["fredapi>=0.5"]
 neural = ["torch>=2.0"]
 openbb = ["openbb>=4.0"]
-dashboard = ["streamlit>=1.30", "plotly>=5.18"]
-dev = ["pytest>=7.4", "ruff>=0.4"]
+dashboard = ["streamlit>=1.46", "plotly>=5.18"]
+dev = [
+    "pytest>=7.4",
+    "pytest-cov>=5.0",
+    "ruff>=0.4",
+    "mypy>=1.10",
+    "pandas-stubs>=2.0",
+]
 
 [project.scripts]
 alpha-forecast = "alpha_forecast.cli:main"
 
+[tool.setuptools.dynamic]
+version = { attr = "alpha_forecast.__version__" }
+
 [tool.setuptools.packages.find]
 include = ["alpha_forecast*"]
+
+[tool.setuptools.package-data]
+alpha_forecast = ["py.typed"]
 
 [tool.ruff]
 line-length = 100
 target-version = "py310"
+extend-exclude = ["notebooks"]
 
 [tool.ruff.lint]
 # Core correctness rules plus import sorting and pyupgrade.
@@ -55,6 +78,13 @@ ignore = ["E501"]  # line length handled by formatter
 [tool.ruff.lint.per-file-ignores]
 "tests/*" = ["F841"]
 
+[tool.mypy]
+python_version = "3.10"
+files = ["alpha_forecast"]
+ignore_missing_imports = true
+warn_redundant_casts = true
+check_untyped_defs = true
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 filterwarnings = [
@@ -64,3 +94,11 @@ filterwarnings = [
     "ignore:.*Stochastic Optimizer.*:UserWarning",
     "ignore:.*hasn't converged.*",
 ]
+
+[tool.coverage.run]
+source = ["alpha_forecast"]
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = true
+fail_under = 80

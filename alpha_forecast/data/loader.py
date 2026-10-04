@@ -12,14 +12,20 @@ that the rest of the pipeline is always runnable and testable.
 from __future__ import annotations
 
 import logging
+import time
+import zlib
 from datetime import date, timedelta
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
 
+from alpha_forecast.config import cache_dir, is_offline
+
 logger = logging.getLogger(__name__)
 
 PRICE_COLUMNS = ["open", "high", "low", "close", "volume"]
+CACHE_TTL_OPEN_RANGE = 12 * 3600  # seconds
 
 
 def _from_openbb(symbol: str, start: str, end: str) -> pd.DataFrame | None:
@@ -67,8 +73,9 @@ def _synthetic(symbol: str, start: str, end: str, seed: int | None = None) -> pd
         dates = pd.bdate_range(start=start_d, periods=252)
         n = len(dates)
 
-    # Seed from the symbol so each ticker is distinct but reproducible.
-    seed = seed if seed is not None else (abs(hash(symbol)) % (2**32))
+    # Seed from the symbol so each ticker is distinct but reproducible across
+    # processes (built-in hash() is salted per interpreter run).
+    seed = seed if seed is not None else zlib.crc32(symbol.encode())
     rng = np.random.default_rng(seed)
 
     mu = 0.08 / 252          # ~8% annual drift
@@ -91,12 +98,46 @@ def _synthetic(symbol: str, start: str, end: str, seed: int | None = None) -> pd
     return df
 
 
+def _cache_path(symbol: str, start: str, end: str) -> Path | None:
+    root = cache_dir()
+    if root is None:
+        return None
+    safe = "".join(ch if ch.isalnum() or ch in "-_." else "_" for ch in symbol.upper())
+    return root / "prices" / f"{safe}_{start}_{end}.pkl"
+
+
+def _read_cache(path: Path | None, end: str) -> pd.DataFrame | None:
+    if path is None or not path.exists():
+        return None
+    # Ranges ending today (or later) are still growing; refresh them periodically.
+    if pd.to_datetime(end).date() >= date.today():
+        age = time.time() - path.stat().st_mtime
+        if age > CACHE_TTL_OPEN_RANGE:
+            return None
+    try:
+        return pd.read_pickle(path)
+    except Exception as exc:
+        logger.warning("Ignoring unreadable cache file %s: %s", path, exc)
+        return None
+
+
+def _write_cache(path: Path | None, df: pd.DataFrame) -> None:
+    if path is None:
+        return
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        df.to_pickle(path)
+    except OSError as exc:
+        logger.warning("Could not write price cache %s: %s", path, exc)
+
+
 def load_prices(
     symbol: str,
     start: str | None = None,
     end: str | None = None,
     *,
     allow_synthetic: bool = True,
+    use_cache: bool = True,
 ) -> pd.DataFrame:
     """Load daily OHLCV prices for ``symbol``.
 
@@ -109,24 +150,41 @@ def load_prices(
     allow_synthetic:
         If True (default) fall back to synthetic data when no provider is
         reachable. Set False to force a failure instead.
+    use_cache:
+        Reuse provider downloads cached on disk (see :mod:`alpha_forecast.config`).
+        Synthetic data is never cached.
 
     Returns
     -------
     DataFrame indexed by date with columns open/high/low/close/volume.
+    ``df.attrs["source"]`` names the provider (``"openbb"``, ``"yfinance"``
+    or ``"synthetic"``).
     """
     if end is None:
         end = date.today().isoformat()
     if start is None:
         start = (date.today() - timedelta(days=365 * 3)).isoformat()
 
-    for provider in (_from_openbb, _from_yfinance):
+    cache_file = _cache_path(symbol, start, end) if use_cache else None
+    cached = _read_cache(cache_file, end)
+    if cached is not None:
+        logger.info("Loaded %s from cache (%d rows)", symbol, len(cached))
+        return cached
+
+    providers = () if is_offline() else (_from_openbb, _from_yfinance)
+    for provider in providers:
         df = provider(symbol, start, end)
         if df is not None and not df.empty:
-            return df[[c for c in PRICE_COLUMNS if c in df.columns]].dropna()
+            df = df[[c for c in PRICE_COLUMNS if c in df.columns]].dropna()
+            df.attrs["source"] = provider.__name__.removeprefix("_from_")
+            _write_cache(cache_file, df)
+            return df
 
     if not allow_synthetic:
         raise RuntimeError(
             f"No data provider available for {symbol} and allow_synthetic=False"
         )
     logger.warning("Falling back to SYNTHETIC data for %s", symbol)
-    return _synthetic(symbol, start, end)
+    df = _synthetic(symbol, start, end)
+    df.attrs["source"] = "synthetic"
+    return df

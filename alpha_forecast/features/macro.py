@@ -21,6 +21,8 @@ import os
 
 import pandas as pd
 
+from alpha_forecast.config import is_offline
+
 logger = logging.getLogger(__name__)
 
 DEFAULT_SERIES = {
@@ -43,6 +45,9 @@ def load_macro(
     Derives a ``yield_slope`` column (10y - 2y) when both are present, a
     classic recession / risk indicator.
     """
+    if is_offline():
+        logger.info("Offline mode; skipping macro features.")
+        return None
     api_key = api_key or os.environ.get("FRED_API_KEY")
     if not api_key:
         logger.info("No FRED_API_KEY set; skipping macro features.")

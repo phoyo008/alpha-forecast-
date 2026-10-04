@@ -46,7 +46,8 @@ def build_features(
     NaN (from warm-up windows or the forward shift) dropped.
     """
     close = prices["close"].astype(float)
-    log_ret = np.log(close).diff()
+    log_close = pd.Series(np.log(close.to_numpy()), index=close.index)
+    log_ret = log_close.diff()
 
     feats = pd.DataFrame(index=prices.index)
 
@@ -86,7 +87,7 @@ def build_features(
         feats = feats.join(ext)
 
     # Target: forward log return
-    target = np.log(close).shift(-horizon) - np.log(close)
+    target = log_close.shift(-horizon) - log_close
     target.name = f"fwd_ret_{horizon}"
 
     feature_cols = list(feats.columns)

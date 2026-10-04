@@ -9,6 +9,7 @@ strong model when the full stack is available.
 from __future__ import annotations
 
 import logging
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -23,7 +24,7 @@ class GradientBoostingForecaster(Forecaster):
 
     def __init__(self, **params) -> None:
         self.params = params
-        self._model = None
+        self._model: Any = None
         self._mean = 0.0
         self._backend = "none"
 
@@ -34,13 +35,15 @@ class GradientBoostingForecaster(Forecaster):
         try:
             import lightgbm as lgb  # type: ignore
 
-            defaults = dict(
+            defaults: dict[str, Any] = dict(
                 n_estimators=300,
                 learning_rate=0.03,
                 num_leaves=31,
                 subsample=0.8,
                 colsample_bytree=0.8,
                 min_child_samples=20,
+                subsample_freq=1,
+                n_jobs=1,  # threading overhead dominates on ~1k-row folds
                 verbosity=-1,
             )
             defaults.update(self.params)

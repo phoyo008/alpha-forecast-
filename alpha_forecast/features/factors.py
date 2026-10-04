@@ -21,6 +21,8 @@ import logging
 import numpy as np
 import pandas as pd
 
+from alpha_forecast.config import is_offline
+
 logger = logging.getLogger(__name__)
 
 FACTOR_COLUMNS = ["mkt_rf", "smb", "hml", "rf"]
@@ -94,7 +96,8 @@ def _synthetic(start: str, end: str) -> pd.DataFrame:
 
 def load_fama_french(start: str, end: str) -> pd.DataFrame:
     """Load daily Fama-French factors in decimal units, indexed by date."""
-    for provider in (_from_openbb, _from_datareader):
+    providers = () if is_offline() else (_from_openbb, _from_datareader)
+    for provider in providers:
         df = provider(start, end)
         if df is not None and not df.empty:
             return df.dropna(how="all")

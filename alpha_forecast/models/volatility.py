@@ -17,6 +17,7 @@ realised volatility.
 from __future__ import annotations
 
 import logging
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -31,7 +32,7 @@ class GARCHVolForecaster:
         self.lam = lam  # EWMA decay for the fallback
         self._backend = "none"
         self._forecast = np.nan
-        self._fitted = None
+        self._fitted: Any = None
 
     def fit(self, returns: pd.Series) -> GARCHVolForecaster:
         r = returns.dropna().astype(float)

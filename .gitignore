@@ -4,6 +4,20 @@ __pycache__/
 *.egg-info/
 .pytest_cache/
 .ruff_cache/
+.mypy_cache/
+.coverage
+coverage.xml
+htmlcov/
 build/
 dist/
 .DS_Store
+
+# Local secrets and personal data (never commit)
+.env
+.env.*
+.streamlit/secrets.toml
+holdings*.csv
+
+# Streamlit agent skills (environment-specific symlinks)
+.agents/skills/developing-with-streamlit
+.claude/skills/developing-with-streamlit

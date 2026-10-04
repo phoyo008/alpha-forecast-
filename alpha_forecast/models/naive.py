@@ -21,7 +21,7 @@ class NaiveForecaster(Forecaster):
 
     name = "naive"
 
-    def fit(self, X: pd.DataFrame, y: pd.Series) -> "NaiveForecaster":
+    def fit(self, X: pd.DataFrame, y: pd.Series) -> NaiveForecaster:
         return self
 
     def predict(self, X: pd.DataFrame) -> np.ndarray:
@@ -36,7 +36,7 @@ class DriftForecaster(Forecaster):
     def __init__(self) -> None:
         self._mean = 0.0
 
-    def fit(self, X: pd.DataFrame, y: pd.Series) -> "DriftForecaster":
+    def fit(self, X: pd.DataFrame, y: pd.Series) -> DriftForecaster:
         self._mean = float(y.mean())
         return self
 

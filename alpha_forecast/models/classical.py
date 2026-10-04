@@ -25,7 +25,7 @@ class ETSForecaster(Forecaster):
         self._last_pred = 0.0
         self._y: pd.Series | None = None
 
-    def fit(self, X: pd.DataFrame, y: pd.Series) -> "ETSForecaster":
+    def fit(self, X: pd.DataFrame, y: pd.Series) -> ETSForecaster:
         self._y = y.copy()
         try:
             from statsmodels.tsa.holtwinters import SimpleExpSmoothing  # type: ignore

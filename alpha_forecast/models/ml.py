@@ -27,7 +27,7 @@ class GradientBoostingForecaster(Forecaster):
         self._mean = 0.0
         self._backend = "none"
 
-    def fit(self, X: pd.DataFrame, y: pd.Series) -> "GradientBoostingForecaster":
+    def fit(self, X: pd.DataFrame, y: pd.Series) -> GradientBoostingForecaster:
         self._mean = float(y.mean())
 
         # 1. LightGBM

@@ -1,7 +1,7 @@
 from alpha_forecast.models.base import Forecaster
-from alpha_forecast.models.naive import NaiveForecaster, DriftForecaster
 from alpha_forecast.models.classical import ETSForecaster
 from alpha_forecast.models.ml import GradientBoostingForecaster
+from alpha_forecast.models.naive import DriftForecaster, NaiveForecaster
 
 MODEL_REGISTRY = {
     "naive": NaiveForecaster,
@@ -11,10 +11,10 @@ MODEL_REGISTRY = {
 }
 
 __all__ = [
-    "Forecaster",
-    "NaiveForecaster",
+    "MODEL_REGISTRY",
     "DriftForecaster",
     "ETSForecaster",
+    "Forecaster",
     "GradientBoostingForecaster",
-    "MODEL_REGISTRY",
+    "NaiveForecaster",
 ]

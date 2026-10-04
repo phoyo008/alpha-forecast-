@@ -5,7 +5,6 @@ All run offline using synthetic fallbacks."""
 from __future__ import annotations
 
 import numpy as np
-import pandas as pd
 
 from alpha_forecast.data import load_prices
 from alpha_forecast.features import build_features, load_fama_french
@@ -38,7 +37,6 @@ def test_extra_features_are_lagged_and_joined():
         prices.index.min().date().isoformat(),
         prices.index.max().date().isoformat(),
     )
-    X_base, _ = build_features(prices, horizon=1)
     X_ext, y_ext = build_features(prices, horizon=1, extra=ff)
     # Extra columns are prefixed and present.
     ext_cols = [c for c in X_ext.columns if c.startswith("ext_")]

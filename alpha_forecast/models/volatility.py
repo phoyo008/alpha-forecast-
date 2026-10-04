@@ -33,7 +33,7 @@ class GARCHVolForecaster:
         self._forecast = np.nan
         self._fitted = None
 
-    def fit(self, returns: pd.Series) -> "GARCHVolForecaster":
+    def fit(self, returns: pd.Series) -> GARCHVolForecaster:
         r = returns.dropna().astype(float)
         try:
             from arch import arch_model  # type: ignore

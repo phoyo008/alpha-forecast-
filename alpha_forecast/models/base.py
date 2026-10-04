@@ -17,7 +17,7 @@ class Forecaster(ABC):
     name: str = "base"
 
     @abstractmethod
-    def fit(self, X: pd.DataFrame, y: pd.Series) -> "Forecaster":
+    def fit(self, X: pd.DataFrame, y: pd.Series) -> Forecaster:
         ...
 
     @abstractmethod

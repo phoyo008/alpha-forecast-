@@ -24,7 +24,7 @@ def forecast_error_metrics(y_true: pd.Series, y_pred: pd.Series) -> dict:
     ss_res = float(np.sum(err**2))
     ss_tot = float(np.sum((y_t - y_t.mean()) ** 2))
     r2 = 1.0 - ss_res / ss_tot if ss_tot > 0 else float("nan")
-    return {"rmse": rmse, "mae": mae, "r2": r2, "n": int(len(y_true))}
+    return {"rmse": rmse, "mae": mae, "r2": r2, "n": len(y_true)}
 
 
 def directional_accuracy(y_true: pd.Series, y_pred: pd.Series) -> float:

@@ -43,5 +43,16 @@ include = ["alpha_forecast*"]
 line-length = 100
 target-version = "py310"
 
+[tool.ruff.lint]
+# Core correctness rules plus import sorting and pyupgrade.
+select = ["E", "F", "I", "UP", "B"]
+# Intentional patterns in this codebase:
+#   BLE001 — defensive provider fallbacks must catch any exception to degrade
+#            gracefully (OpenBB/yfinance/arch may fail in many ways).
+ignore = ["E501"]  # line length handled by formatter
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["F841"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]

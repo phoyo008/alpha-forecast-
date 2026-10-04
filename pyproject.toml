@@ -29,6 +29,7 @@ full = [
 ]
 factors = ["pandas-datareader>=0.10"]
 macro = ["fredapi>=0.5"]
+neural = ["torch>=2.0"]
 openbb = ["openbb>=4.0"]
 dashboard = ["streamlit>=1.30", "plotly>=5.18"]
 dev = ["pytest>=7.4", "ruff>=0.4"]

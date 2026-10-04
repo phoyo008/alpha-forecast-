@@ -38,9 +38,10 @@ misleadingly high because prices trend). `alpha-forecast` avoids all four:
 alpha_forecast/
 ├── data/          # OpenBB → yfinance → synthetic fallback (always runnable)
 ├── features/      # causal engineering: price features + Fama-French factors + FRED macro
-├── models/        # Forecaster interface + naive, drift, ETS, gradient boosting, GARCH vol
+├── models/        # naive, drift, ETS, gradient boosting, neural (LSTM/MLP), GARCH vol
 ├── backtest/      # expanding-window walk-forward engine
 ├── evaluation/    # forecast-error + economic metrics + matplotlib plots
+├── portfolio/     # mean-variance / risk-parity optimizer + multi-asset backtest
 ├── pipeline.py    # end-to-end orchestration → model leaderboard
 └── cli.py         # command-line entry point
 dashboard/app.py   # Streamlit UI with equity curves + leaderboard
@@ -111,6 +112,42 @@ python -m alpha_forecast.cli --symbol AAPL --factors --macro -v
 All external features are **forward-filled and lagged one day** before joining,
 so they can only ever use information observable at the close of the trading
 day — preserving the no-look-ahead guarantee.
+
+### Neural forecasting
+
+A `neural` model is in the registry. It uses a **PyTorch LSTM** over a lookback
+window when `torch` is installed, falling back to a scikit-learn **MLP**, then a
+ridge linear model — so it runs everywhere while using a sequence model when
+available. Inputs are z-scored with **train-fold-only** statistics (no leakage).
+
+```bash
+pip install -e ".[full,neural]"      # adds torch
+python -m alpha_forecast.cli --symbol AAPL --models naive gbm neural -v
+```
+
+### Portfolio construction
+
+Turn per-asset forecasts into an actual allocation and backtest it
+cross-sectionally. Three schemes, implemented in pure NumPy (no cvxpy):
+
+| Scheme | Idea |
+|---|---|
+| `equal` | 1/N baseline |
+| `mean_variance` | maximise return per unit risk (long-only, projected gradient) |
+| `risk_parity` | each asset contributes equal risk |
+
+```bash
+# Multi-asset portfolio backtest
+python -m alpha_forecast.cli --portfolio AAPL MSFT GOOG AMZN \
+    --scheme mean_variance --models gbm -v
+```
+
+```python
+from alpha_forecast.portfolio import mean_variance_weights, risk_parity_weights
+# mu: expected returns (Series), cov: covariance (DataFrame)
+w = mean_variance_weights(mu, cov, risk_aversion=10)
+w_rp = risk_parity_weights(cov)
+```
 
 ### Volatility forecasting
 

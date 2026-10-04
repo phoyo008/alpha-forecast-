@@ -2,7 +2,8 @@
 
 Example:
     python -m alpha_forecast.cli --symbol AAPL --horizon 1
-    python -m alpha_forecast.cli --symbol MSFT --models naive gbm --cost-bps 2
+    python -m alpha_forecast.cli --symbol MSFT --models naive gbm neural --cost-bps 2
+    python -m alpha_forecast.cli --portfolio AAPL MSFT GOOG --scheme risk_parity
 """
 
 from __future__ import annotations
@@ -19,6 +20,20 @@ def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
         prog="alpha-forecast",
         description="Multi-model equity return forecasting & backtesting.",
+    )
+    p.add_argument(
+        "--portfolio",
+        nargs="+",
+        default=None,
+        metavar="SYMBOL",
+        help="Run a multi-asset portfolio backtest over these tickers instead "
+        "of a single-symbol leaderboard.",
+    )
+    p.add_argument(
+        "--scheme",
+        default="mean_variance",
+        choices=["equal", "mean_variance", "risk_parity"],
+        help="Portfolio allocation scheme (with --portfolio)",
     )
     p.add_argument("--symbol", default="AAPL", help="Ticker symbol (default: AAPL)")
     p.add_argument("--start", default=None, help="Start date YYYY-MM-DD")
@@ -54,6 +69,31 @@ def main(argv: list[str] | None = None) -> int:
         level=logging.INFO if args.verbose else logging.WARNING,
         format="%(levelname)s %(name)s: %(message)s",
     )
+
+    # Multi-asset portfolio mode
+    if args.portfolio:
+        from alpha_forecast.portfolio.backtest import portfolio_backtest
+
+        model = args.models[0] if args.models else "gbm"
+        out = portfolio_backtest(
+            args.portfolio,
+            scheme=args.scheme,
+            model=model,
+            horizon=args.horizon,
+            initial_train=args.initial_train,
+            step=args.step,
+        )
+        print(
+            f"\n=== portfolio backtest: {', '.join(args.portfolio)} "
+            f"[{args.scheme}, model={model}] ===\n"
+        )
+        print(f"  Sharpe       : {out['sharpe']:.2f}")
+        print(f"  Ann. return  : {out['ann_return'] * 100:.2f}%")
+        print(f"  Ann. vol     : {out['ann_vol'] * 100:.2f}%")
+        print(f"  Max drawdown : {out['max_drawdown'] * 100:.2f}%")
+        print(f"  Rebalances   : {len(out['weights_history'])}\n")
+        return 0
+
     board = run_comparison(
         args.symbol,
         start=args.start,

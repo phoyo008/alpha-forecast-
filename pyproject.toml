@@ -67,7 +67,7 @@ alpha_forecast = ["py.typed"]
 [tool.ruff]
 line-length = 100
 target-version = "py310"
-extend-exclude = ["notebooks"]
+extend-exclude = ["notebooks", "portfolio_tracker"]
 
 [tool.ruff.lint]
 # Core correctness rules plus import sorting and pyupgrade.

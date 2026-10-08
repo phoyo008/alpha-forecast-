@@ -336,6 +336,16 @@ portfolio timing and cost regressions, and a headless Streamlit smoke test.
 
 ---
 
+## Portfolio tracker
+
+[`portfolio_tracker/`](portfolio_tracker/) is a companion app that tracks
+politicians' stock portfolios from public STOCK Act disclosures, syncs your own
+Alpaca portfolio, and generates copy-trade signals with safety rails. It is a
+standalone FastAPI + React app with its own dependencies and tests; see
+[its README](portfolio_tracker/README.md) for setup.
+
+---
+
 ## Roadmap / extension ideas
 
 - Deep-learning sequence models (N-BEATS / TFT via `darts` or `neuralforecast`)

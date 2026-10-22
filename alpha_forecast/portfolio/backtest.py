@@ -16,6 +16,7 @@ costs are charged on the turnover needed to get back to target.
 from __future__ import annotations
 
 import logging
+from collections.abc import Mapping
 
 import numpy as np
 import pandas as pd
@@ -23,7 +24,7 @@ import pandas as pd
 from alpha_forecast.backtest import walk_forward_backtest
 from alpha_forecast.data import load_prices
 from alpha_forecast.evaluation.metrics import TRADING_DAYS, max_drawdown, sharpe_ratio
-from alpha_forecast.features import build_features
+from alpha_forecast.features import build_features, cross_sectional_momentum
 from alpha_forecast.models import MODEL_REGISTRY
 from alpha_forecast.portfolio.optimizer import (
     black_litterman,
@@ -37,10 +38,9 @@ logger = logging.getLogger(__name__)
 SCHEMES = ("equal", "mean_variance", "risk_parity", "black_litterman")
 
 
-def _oos_forecasts(symbol, model, horizon, initial_train, step, start, end):
+def _oos_forecasts(symbol, prices, extra, model, horizon, initial_train, step):
     """Out-of-sample forecasts plus realised (t-1 -> t) and forward (t -> t+1) returns."""
-    prices = load_prices(symbol, start, end)
-    X, y = build_features(prices, horizon=horizon)
+    X, y = build_features(prices, horizon=horizon, extra=extra)
     res = walk_forward_backtest(
         MODEL_REGISTRY[model], X, y, initial_train=initial_train, step=step, horizon=horizon
     )
@@ -80,6 +80,8 @@ def portfolio_backtest(
     cov_window: int = 60,
     risk_aversion: float = 10.0,
     cost_bps: float = 1.0,
+    cross_sectional: bool = False,
+    sectors: Mapping[str, str] | None = None,
 ) -> dict:
     """Backtest a cross-sectional portfolio built from per-asset forecasts.
 
@@ -97,6 +99,12 @@ def portfolio_backtest(
         Trailing window (days) for the sample covariance estimate.
     cost_bps:
         Transaction cost per unit of notional traded at each rebalance.
+    cross_sectional:
+        Add cross-sectional momentum features (universe rank, z-score and
+        sector-relative momentum) to every asset's forecasting model.
+    sectors:
+        Optional ``{symbol: sector}`` map for the sector-relative features;
+        without it momentum is measured relative to the whole universe.
 
     Returns a dict with the realised daily portfolio returns and summary stats.
     """
@@ -105,10 +113,16 @@ def portfolio_backtest(
     if model not in MODEL_REGISTRY:
         raise ValueError(f"Unknown model '{model}'; choose from {list(MODEL_REGISTRY)}")
 
+    prices = {s: load_prices(s, start, end) for s in symbols}
+    extras: Mapping[str, pd.DataFrame | None] = {}
+    if cross_sectional:
+        closes = pd.DataFrame({s: p["close"] for s, p in prices.items()})
+        extras = cross_sectional_momentum(closes, sectors=sectors)
+
     preds, realised, forward = {}, {}, {}
     for s in symbols:
         preds[s], realised[s], forward[s] = _oos_forecasts(
-            s, model, horizon, initial_train, step, start, end
+            s, prices[s], extras.get(s), model, horizon, initial_train, step
         )
 
     pred_df = pd.DataFrame(preds).dropna()

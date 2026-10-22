@@ -39,3 +39,15 @@ def test_plots_render():
     res = walk_forward_backtest(MODEL_REGISTRY["drift"], X, y, horizon=5)
     assert equity_curve(res.actuals, res.predictions, horizon=5).axes
     assert prediction_scatter(res.actuals, res.predictions).axes
+
+
+def test_cli_portfolio_cross_sectional(capsys):
+    argv = [*ARGS, "--portfolio", "AAA", "BBB", "CCC", "--models", "drift",
+            "--cross-sectional", "--sectors", "AAA=tech", "BBB=tech", "CCC=energy"]
+    assert main(argv) == 0
+    assert "Sharpe" in capsys.readouterr().out
+
+
+def test_cli_rejects_malformed_sector():
+    with pytest.raises(SystemExit):
+        main([*ARGS, "--portfolio", "AAA", "BBB", "--sectors", "AAA"])

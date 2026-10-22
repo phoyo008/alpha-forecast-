@@ -40,7 +40,7 @@ misleadingly high because prices trend). `alpha-forecast` avoids all of them:
 ```
 alpha_forecast/
 ├── data/          # OpenBB → yfinance → synthetic fallback, live quotes, Blockchair on-chain
-├── features/      # causal engineering: price + Fama-French + FRED macro + on-chain
+├── features/      # causal engineering: price + cross-sectional momentum + Fama-French + FRED macro + on-chain
 ├── models/        # naive, drift, ETS, gradient boosting, neural, regime-switching, GARCH vol
 ├── backtest/      # expanding-window walk-forward engine with label purging
 ├── evaluation/    # error + economic metrics, significance tests, matplotlib plots
@@ -249,6 +249,34 @@ mu_bl, cov_bl = black_litterman(cov, views=mu, view_confidence=0.5)
 w_bl = mean_variance_weights(mu_bl, cov_bl, risk_aversion=10)
 ```
 
+#### Cross-sectional momentum features
+
+Per-asset features only compare an asset with its own past. A portfolio needs to
+know which asset to favour, so `--cross-sectional` gives every asset's model
+three features per look-back window (21, 63 and 126 days):
+
+| Feature | Meaning |
+|---|---|
+| `xs_rank_{w}` | percentile rank of `w`-day momentum across the universe |
+| `xs_z_{w}` | cross-sectional z-score of `w`-day momentum |
+| `sec_rel_{w}` | momentum minus the mean of the asset's sector peers (leave-one-out) |
+
+Assets without a sector, or alone in their sector, are compared with the rest of
+the universe. Like the other external features, these are lagged one day before
+they reach the model.
+
+```bash
+python -m alpha_forecast.cli --portfolio AAPL MSFT NVDA XOM CVX JPM GS \
+    --scheme black_litterman --models gbm --cross-sectional \
+    --sectors AAPL=tech MSFT=tech NVDA=tech XOM=energy CVX=energy JPM=fin GS=fin
+```
+
+```python
+from alpha_forecast.features import cross_sectional_momentum
+feats = cross_sectional_momentum(closes, sectors={"AAPL": "tech", "XOM": "energy"})
+feats["AAPL"]  # DataFrame of xs_rank_*, xs_z_*, sec_rel_* indexed by date
+```
+
 ### Volatility forecasting
 
 `alpha_forecast.models.volatility` provides a **GARCH(1,1)** forecaster (via the
@@ -351,7 +379,7 @@ standalone FastAPI + React app with its own dependencies and tests; see
 - Deep-learning sequence models (N-BEATS / TFT via `darts` or `neuralforecast`)
 - Christoffersen independence test for VaR breach clustering
 - Multiple-testing control across models (White's Reality Check / SPA test)
-- Cross-sectional features (sector-relative momentum) for the portfolio model
+- Automatic sector lookup for `--cross-sectional` (currently a manual `--sectors` map)
 - Macro features from ECB via OpenBB
 
 ---

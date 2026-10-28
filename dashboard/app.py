@@ -97,11 +97,23 @@ def cached_quotes(symbols_key: tuple[str, ...]) -> pd.DataFrame:
 def run_portfolio(
     symbols: tuple[str, ...], scheme: str, model: str, start: str, end: str,
     horizon: int, initial_train: int, rebalance: int, cost_bps: float,
+    cross_sectional: bool = False, sectors: tuple[tuple[str, str], ...] = (),
 ) -> dict:
     return portfolio_backtest(
         list(symbols), scheme=scheme, model=model, start=start, end=end, horizon=horizon,
         initial_train=initial_train, rebalance=rebalance, cost_bps=cost_bps,
+        cross_sectional=cross_sectional, sectors=dict(sectors) or None,
     )
+
+
+def parse_sectors(text: str) -> tuple[tuple[str, str], ...]:
+    """Parse ``"AAPL=tech, XOM=energy"`` into sorted ``(symbol, sector)`` pairs."""
+    pairs = []
+    for item in text.split(","):
+        symbol, sep, sector = item.partition("=")
+        if sep and symbol.strip() and sector.strip():
+            pairs.append((symbol.strip().upper(), sector.strip()))
+    return tuple(sorted(pairs))
 
 
 # --- chart helpers ------------------------------------------------------------
@@ -215,6 +227,18 @@ with st.sidebar:
         port_model = st.selectbox("Forecast model", list(MODEL_REGISTRY), index=list(
             MODEL_REGISTRY).index("gbm"))
         rebalance = st.slider("Rebalance every (days)", 1, 63, 21)
+        cross_sectional = st.toggle(
+            "Cross-sectional momentum features", value=False,
+            help="Rank, z-score and sector-relative momentum of each asset versus the "
+                 "rest of the universe (21/63/126-day windows, lagged one day).",
+        )
+        sectors: tuple[tuple[str, str], ...] = ()
+        if cross_sectional and mode == "Portfolio":
+            sectors = parse_sectors(st.text_input(
+                "Sectors (optional)", value="",
+                placeholder="AAPL=tech, MSFT=tech, XOM=energy",
+                help="Tickers without a sector are compared with the whole universe.",
+            ))
 
     if st.button("Run backtest", type="primary"):
         st.session_state["ran"] = mode
@@ -491,7 +515,7 @@ else:
         st.stop()
     with st.spinner("Forecasting each asset and backtesting the portfolio..."):
         out = run_portfolio(symbols, scheme, port_model, start, end, horizon, initial_train,
-                            rebalance, cost_bps)
+                            rebalance, cost_bps, cross_sectional, sectors)
         bench = run_portfolio(symbols, "equal", port_model, start, end, horizon, initial_train,
                               rebalance, cost_bps)
 

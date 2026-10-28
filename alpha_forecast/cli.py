@@ -19,6 +19,13 @@ from alpha_forecast.pipeline import run_comparison
 from alpha_forecast.portfolio.backtest import SCHEMES
 
 
+def _parse_sector(item: str) -> tuple[str, str]:
+    symbol, sep, sector = item.partition("=")
+    if not sep or not symbol.strip() or not sector.strip():
+        raise argparse.ArgumentTypeError(f"expected SYMBOL=SECTOR, got '{item}'")
+    return symbol.strip().upper(), sector.strip()
+
+
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
         prog="alpha-forecast",
@@ -37,6 +44,21 @@ def build_parser() -> argparse.ArgumentParser:
         default="mean_variance",
         choices=list(SCHEMES),
         help="Portfolio allocation scheme (with --portfolio)",
+    )
+    p.add_argument(
+        "--cross-sectional",
+        action="store_true",
+        help="Add cross-sectional momentum features: universe rank, z-score and "
+        "sector-relative momentum (with --portfolio)",
+    )
+    p.add_argument(
+        "--sectors",
+        nargs="+",
+        default=None,
+        type=_parse_sector,
+        metavar="SYMBOL=SECTOR",
+        help="Sector of each ticker for --cross-sectional, e.g. AAPL=tech XOM=energy. "
+        "Tickers without a sector are compared with the whole universe.",
     )
     p.add_argument("--symbol", default="AAPL", help="Ticker symbol (default: AAPL)")
     p.add_argument("--start", default=None, help="Start date YYYY-MM-DD")
@@ -124,6 +146,8 @@ def main(argv: list[str] | None = None) -> int:
             initial_train=args.initial_train,
             step=args.step,
             cost_bps=args.cost_bps,
+            cross_sectional=args.cross_sectional,
+            sectors=dict(args.sectors) if args.sectors else None,
         )
         print(
             f"\n=== portfolio backtest: {', '.join(args.portfolio)} "

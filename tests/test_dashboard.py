@@ -101,3 +101,14 @@ def test_dashboard_holdings_mode_with_file(monkeypatch, tmp_path):
     assert not at.exception, at.exception
     labels = [m.label for m in at.metric]
     assert "Sharpe" in labels and "Market value" in labels
+
+
+def test_dashboard_portfolio_cross_sectional_run():
+    at = _app("Portfolio")
+    at.text_input[0].set_value("AAA, BBB, CCC")
+    at.selectbox[1].set_value("drift")
+    at.toggle[0].set_value(True).run()
+    at.text_input[1].set_value("AAA=x, BBB=x, CCC=y")
+    at.button[0].click().run()
+    assert not at.exception, at.exception
+    assert [m.label for m in at.metric][:2] == ["Sharpe", "Ann. return"]
